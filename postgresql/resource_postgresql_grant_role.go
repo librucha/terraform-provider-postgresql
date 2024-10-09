@@ -52,6 +52,13 @@ func resourcePostgreSQLGrantRole() *schema.Resource {
 				Default:     false,
 				Description: "Permit the grant recipient to grant it to others",
 			},
+			"ignore_already_granted": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				ForceNew:    true,
+				Default:     false,
+				Description: "Ignore already granted role. Revoke is not called before grant",
+			},
 		},
 	}
 }
@@ -81,9 +88,13 @@ func resourcePostgreSQLGrantRoleCreate(db *DBConnection, d *schema.ResourceData)
 	}
 	defer deferredRollback(txn)
 
-	// Revoke the granted roles before granting them again.
-	if err = revokeRole(txn, d); err != nil {
-		return err
+	skipRevoke := d.Get("ignore_already_granted").(bool)
+
+	if !skipRevoke {
+		// Revoke the granted roles before granting them again.
+		if err = revokeRole(txn, d); err != nil {
+			return err
+		}
 	}
 
 	if err = grantRole(txn, d); err != nil {
